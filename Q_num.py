@@ -295,11 +295,12 @@ def mean(*qn_array,**kwargs):
     return qn(qmatMean)
 
 def exp(qn1):
-    e_real = np.exp(qn1.w)
-    qn_imag = qn1.imag()
-    qn_imagnorm = qn_imag.norm()
-    imagpart =(qn_imag*np.sin(qn_imagnorm)/qn_imagnorm+(qn1.real()/qn1.realpart())*np.cos(qn_imagnorm))
-    return imagpart*e_real
+    coeff_real = np.exp(qn1.w)
+    coeff_imag_base = qn1.imag().norm()
+    coeff_imag = np.sin(coeff_imag_base)/coeff_imag_base
+    qn_exp     =  np.stack([coeff_real*np.cos(coeff_imag_base),
+                   qn1.x*coeff_imag,qn1.y*coeff_imag,qn1.z*coeff_imag],axis = -1)
+    return qn(qn_exp)
 
 
 def qdot(qn1,qn2):
