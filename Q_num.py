@@ -6,7 +6,7 @@ Created on Fri Aug  9 10:11:32 2019
 """
 
 import numpy as np
-from IPython import embed;
+# from IPython import embed;
 import warnings
 class qn (np.ndarray):
     qn_dtype = [('w', np.double),('x', np.double),('y', np.double),('z', np.double)]
@@ -83,7 +83,7 @@ class qn (np.ndarray):
 
     def __neg__(self):
         compactProduct = -self.asMatrix()
-        return compactProduct.view(self.qn_dtype).view(qn)
+        return np.reshape(compactProduct.view(self.qn_dtype).view(qn),compactProduct.shape[:-1])
 
     def __add__(self,qn2):
         if any([1 if (qn2.__class__ == k) else 0 for k in (int,float,np.ndarray,np.float64,np.float32,np.int)]):
@@ -92,7 +92,7 @@ class qn (np.ndarray):
             compactProduct = self.asMatrix()+qn2.asMatrix()
         else:
             raise ValueError('Invalid type of input')
-        return compactProduct.view(self.qn_dtype).view(qn)
+        return np.reshape(compactProduct.view(self.qn_dtype).view(qn),compactProduct.shape[:-1])
 
     def __iadd__(self,qn2):
         return self.__add__(qn2)
@@ -107,7 +107,7 @@ class qn (np.ndarray):
             compactProduct = self.asMatrix()-qn2.asMatrix()
         else:
             raise ValueError('Invalid type of input')
-        return compactProduct.view(self.qn_dtype).view(qn)
+        return np.reshape(compactProduct.view(self.qn_dtype).view(qn),compactProduct.shape[:-1])
 
     def __isub__(self,qn2):
         return self.__sub__(qn2)
@@ -119,12 +119,12 @@ class qn (np.ndarray):
             compactProduct = qn2.asMatrix()-self.asMatrix()
         else:
             raise ValueError('Invalid type of input')
-        return compactProduct.view(self.qn_dtype).view(qn)
+        return np.reshape(compactProduct.view(self.qn_dtype).view(qn),compactProduct.shape[:-1])
 
     def __mul__(self,qn2):
         if any([1 if (qn2.__class__ == k) else 0 for k in (int,float,np.ndarray,np.float64,np.float32,np.int)]):
             compactProduct = self.asMatrix()*qn2
-            compactProduct = compactProduct.view(self.qn_dtype)
+            compactProduct = np.reshape(compactProduct.view(self.qn_dtype),compactProduct.shape[:-1])
         elif qn2.__class__ == self.__class__:
             temp_shape = (self['w']*qn2['w']).shape
             if not temp_shape:
@@ -143,7 +143,7 @@ class qn (np.ndarray):
     def __rmul__(self,qn2):
         if any([1 if (qn2.__class__ == k) else 0 for k in (int,float,np.ndarray,np.float64,np.float32,np.int)]):
             compactProduct = self.asMatrix()*qn2
-            compactProduct = compactProduct.view(self.qn_dtype)
+            compactProduct = np.reshape(compactProduct.view(self.qn_dtype),compactProduct.shape[:-1])
         elif qn2.__class__ == self.__class__:
             temp_shape = (self['w']*qn2['w']).shape
             if not temp_shape:
@@ -181,10 +181,10 @@ class qn (np.ndarray):
     def __truediv__(self,qn2):
         if any([1 if (qn2.__class__ == k) else 0 for k in (int,float,np.float64,np.float32,np.int)]):
             compactProduct = self.asMatrix()/qn2
-            compactProduct = compactProduct.view(self.qn_dtype)
+            compactProduct = np.reshape(compactProduct.view(self.qn_dtype),compactProduct.shape[:-1])
         elif qn2.__class__ == np.ndarray:
             compactProduct = self.asMatrix()/qn2[...,None]
-            compactProduct = compactProduct.view(self.qn_dtype)
+            compactProduct = np.reshape(compactProduct.view(self.qn_dtype),compactProduct.shape[:-1])
         elif qn2.__class__ == self.__class__:
             inv_qn2 = qn2.inv()
             temp_shape = (self['w']*inv_qn2['w']).shape
@@ -205,10 +205,10 @@ class qn (np.ndarray):
         inv_self = self.inv()
         if any([1 if (qn2.__class__ == k) else 0 for k in (int,float,np.float64,np.float32,np.int)]):
             compactProduct = inv_self.asMatrix()/qn2
-            compactProduct = compactProduct.view(self.qn_dtype)
+            compactProduct = np.reshape(compactProduct.view(self.qn_dtype),compactProduct.shape[:-1])
         elif qn2.__class__ == np.ndarray:
             compactProduct = inv_self.asMatrix()/qn2[...,None]
-            compactProduct = compactProduct.view(self.qn_dtype)
+            compactProduct = np.reshape(compactProduct.view(self.qn_dtype),compactProduct.shape[:-1])
         elif qn2.__class__ == self.__class__:
             temp_shape = (qn2['w']*inv_self['w']).shape
             if not temp_shape:
@@ -353,11 +353,19 @@ def qcross(qn1,qn2):
     return (qn1*qn2).imag()
 
 def anglebtw(qn1,qn2):
-    return np.arccos(qdot(qn1,qn2)/(qn1.norm()*qn2.norm()))
+    # return np.arccos(qdot(qn1,qn2)/(qn1.norm()*qn2.norm())) # deprecated, too slow
+    return np.arcsin((qn1.normalize()-qn2.normalize()).norm()/2)*2
+
 
 def reflect(surf_normal,points):
     surf_normal /= surf_normal.norm()
     return(surf_normal*points*surf_normal)
+
+def ortho_project(surf_normal,points,on_plane = True):
+    if on_plane:
+        return (points+reflect(surf_normal,points))/2
+    else:
+        return (points-reflect(surf_normal,points))/2
 
 def rotate(rot_axis,rot_point,rot_angle = None):
     if type(rot_angle) != type(None):
