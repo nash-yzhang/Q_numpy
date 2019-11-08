@@ -53,7 +53,9 @@ class qn (np.ndarray):
             raise Exception('Input array should be a N x ... x 4 matrix, instead its shape is %s\n' % (matshape,))
         obj = qn_compact.view(cls)                                  # Convert to quaternion ndarray object
         return obj
-################################### Method ###################################
+
+    ###################################  Method  ###################################
+
     def __getitem__(self, keys):
         """
         Custom indexing for structured quaternion ndarray
