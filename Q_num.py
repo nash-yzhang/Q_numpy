@@ -55,6 +55,8 @@ class qn(np.ndarray):
         else:
             raise Exception('Input array should be a N x ... x 4 matrix, instead its shape is %s\n' % (matshape,))
         obj = qn_compact.view(cls)  # Convert to quaternion ndarray object
+        if obj.shape == (): # Convert 1 element array (has 0 dim) to 1-d array
+            obj = np.expand_dims(obj,-1)
         return obj
 
     ###################################  Method  ###################################
@@ -489,21 +491,15 @@ def reflect(surf_normal, points):
     surf_normal /= surf_normal.norm
     return surf_normal * points * surf_normal
 
-
-def ortho_project(surf_normal, points, on_plane=True):
-    """
-    Calculate the orthognal projection of quaternion 3d vectors
-    Input:
-        surf_normal: normal vector for the projection surface (quaternion)
-        points: qn vectors or points to be projected
-    Output:
-        projected qn vectors/points
-    """
-    if on_plane:
-        return (points + reflect(surf_normal, points)) / 2
+def reflect_matrix(surf_norm_vector):
+    normtype = type(surf_norm_vector)
+    if normtype == np.ndarray:
+        surf_norm = qn(surf_norm_vector)
+    elif normtype == qn:
+        surf_norm = surf_norm_vector.imag.normalize  # The real part of the  orientation quaternion should always be 0
     else:
-        return (points - reflect(surf_normal, points)) / 2
-
+        raise Exception("Camera orientation should be a ndarray or a quaternion, instead its type is %s\n" % normtype)
+    return surf_norm.sandwich_mat
 
 def rotate(rot_axis, rot_point, rot_angle=None):
     """
@@ -522,6 +518,18 @@ def rotate(rot_axis, rot_point, rot_angle=None):
     # rot_axis[np.isnan(rot_axis.norm)] *= 0
     return rot_axis * rot_point * rot_axis.conj
 
+def rotation_matrix(rotation_axis,rot_angle = None):
+    axistype = type(rotation_axis)
+    if axistype == np.ndarray:
+        rot_axis = qn(rotation_axis)
+    elif axistype == qn:
+        rot_axis = rotation_axis  # The real part of the  orientation quaternion should always be 0
+    else:
+        raise Exception('Camera orientation should be a ndarray or a quaternion, instead its type is %s\n' % axistype)
+    if type(rot_angle) != type(None):
+        rot_axis = np.squeeze(exp(rot_angle / 2 * rot_axis.normalize))
+    return rot_axis.conj_sandwich_mat
+
 
 def rotTo(fromQn, toQn):
     """
@@ -538,3 +546,58 @@ def rotTo(fromQn, toQn):
     transVec = transVec.imag - transVec.real
     transVec += transVec.norm
     return transVec.normalize
+
+def projection(surf_normal_qn, proj_pnt_qn, on_plane=True, outputformat = 'qn'):
+    """
+    Computing the projected quaternion
+    ------------
+    :param  surf_normal_qn: normal vector of the projection surface (quaternion)
+    :param  proj_pnt_qn: qn vectors to be projected
+    :return:  projected qn vectors
+    """
+    if on_plane:
+        return (proj_pnt_qn + reflect(surf_normal_qn, proj_pnt_qn)) / 2
+    else:
+        return (proj_pnt_qn - reflect(surf_normal_qn, proj_pnt_qn)) / 2
+
+def projection_matrix(projection_normal, flat_output = True):
+    """
+    Calculate the orthogonal projection transformation
+    ------------
+    :param camera_orientation: 1 x 3 ndarray or a quaternion number; the camera's pointing direction
+    :param flat_output: boolean, optional; if True (default), the output transformation quternion number or matrix will project the target point to the xy plane
+    :param outputformat: str; can either be 'mat' (returns transformation matrix) or 'qn' (returns transformation quaternion number, default).
+    :return: transformation matrix or quaternion number for the corresponding orthogonal projection
+    """
+    if all(projection_normal.imagpart.flatten()==0):
+        raise Exception('Input projection normal vector is a zero vector')
+    else:
+        reflect_mat = reflect_matrix(projection_normal)
+        projection_mat = (np.eye(4) + np.squeeze(reflect_mat)) / 2
+
+        if flat_output:
+            xynorm = qn(np.array([0,0,1]))  # The normal quaternion number for x-y plane
+            if all(projection_normal.imagpart.flatten()[:2] == 0):
+                backrot = rotTo(projection_normal, xynorm)
+            else:
+                projection_xy = np.copy(projection_normal).view(qn)  # Intermediate quaternnion for rotate the projected result to the x-y plane
+                projection_xy['z'] *= 0
+                backrot = rotTo(projection_xy,xynorm) * rotTo(projection_normal,projection_xy)
+            backrot_mat = rotation_matrix(backrot)
+            return np.dot(np.squeeze(backrot_mat),projection_mat)
+        else:
+            return projection_mat
+
+def orthogonal_projection(camera_orientation, flat_output = True, outputformat = 'qn'):
+
+    oritype = type(camera_orientation)
+    if oritype == np.ndarray:
+        camori = qn(camera_orientation)
+    elif oritype == qn:
+        camori = camera_orientation.imag # The real part of the  orientation quaternion should always be 0
+    else:
+        raise Exception('Camera orientation should be a ndarray or a quaternion, instead its type is %s\n' % oritype)
+
+
+
+
