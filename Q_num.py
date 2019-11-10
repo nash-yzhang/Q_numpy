@@ -7,25 +7,21 @@ import numpy as np
 import warnings
 
 
-# noinspection PyArgumentList
-class qn(np.ndarray):
-    """
-    Created a quaternion structured ndarray with 4 fields (w,x,y,z) for the 4
-    parts of quaternion number (double precision)
-    Input:
-        - M x ... x N x 4 ndarray. The slices of the last dimension will be assigned to
-        4 fields.
-        - If the last dimension of the input array only have 3 slices, then the input
-        array is assumed to be the coordinates of 3D cartesian space, the slices in
-        such an array will be assigned the field x, y, z respectively, the field w
-        will be filled with 0. A warning message will be returned to remind the
-        assumption of the input data structure.
-    Output:
-        - M x ... x N quaternion structured array.
-    """
+class qn (np.ndarray) :
+
     qn_dtype = [('w', np.double), ('x', np.double), ('y', np.double), ('z', np.double)]
 
     def __new__(cls, compact_mat):
+        """
+        Override the __new__ function of ndarray for generating new instance of quaternion array
+        ----------------------------------
+        :param compact_mat: M x ... x N x 4 ndarray or list. The slices of the last dimension will be assigned as the 4 parts of quaternion. If the last dimension of the input array only have 3 slices, then the input
+                                array is assumed to be the coordinates of 3D cartesian space, the slices in
+                                such an array will be assigned the field x, y, z respectively, the field w
+                                will be filled with 0. A warning message will be returned to remind the
+                                assumption of the input data structure.
+        :return: M x ... x N quaternion structured array.
+        """
         mattype = type(compact_mat)
         if mattype == list:  # Check if input is ndarray or list, else return a type error
             compact_mat = np.asarray(compact_mat)
@@ -55,8 +51,8 @@ class qn(np.ndarray):
         else:
             raise Exception('Input array should be a N x ... x 4 matrix, instead its shape is %s\n' % (matshape,))
         obj = qn_compact.view(cls)  # Convert to quaternion ndarray object
-        if obj.shape == (): # Convert 1 element array (has 0 dim) to 1-d array
-            obj = np.expand_dims(obj,-1)
+        if obj.shape == ():  # Convert 1 element array (has 0 dim) to 1-d array
+            obj = np.expand_dims(obj, -1)
         return obj
 
     ###################################  Method  ###################################
@@ -188,7 +184,8 @@ class qn(np.ndarray):
         return compactProduct.view(qn)
 
     def __imul__(self, qn2):
-        # Elementary arithmetic: qn1 *= qn2; check https://en.wikipedia.org/wiki/Quaternion#Algebraic_properties for details
+        # Elementary arithmetic: qn1 *= qn2; check https://en.wikipedia.org/wiki/Quaternion#Algebraic_properties for
+        # details
         return self.__mul__(qn2)
 
     def __truediv__(self, qn2):
@@ -220,8 +217,13 @@ class qn(np.ndarray):
         return compactProduct.view(qn)
 
     def __rtruediv__(self, qn2):
-        # Elementary arithmetic: qn2 / qn1; Note the result of __truediv__ and __rtruediv__ are not equal for quaternion
-        inv_self = self.inv
+        """
+        Elementary arithmetic: qn2 / qn1; Note the result of __truediv__ and __rtruediv__ are not equal for quaternion
+
+        :param qn2: quaternion or real number ndarray
+        :return: quaternion ndarray; qn2 / qn1
+        """
+        inv_self: qn = self.inv
         if any([1 if (qn2.__class__ == k) else 0 for k in (int, float, np.float64, np.float32, np.int)]):
             compactProduct = inv_self.matrixform / qn2
             compactProduct = np.reshape(compactProduct.view(self.qn_dtype), compactProduct.shape[:-1])
@@ -248,24 +250,43 @@ class qn(np.ndarray):
         return compactProduct.view(qn)
 
     def __itruediv__(self, qn2):
-        # Elementary arithmetic: qn1 /= qn2 (or r)
+        """
+        Elementary arithmetic: qn1 /= qn2 (or real number);
+
+        :param qn2: quaternion or real number ndarray
+        :return: quaternion ndarray;
+        """
+        # Elementary arithmetic:
         return self.__truediv__(qn2)
 
     ########### Properties ###########
     @property
     def matrixform(self):
-        # Converted to the double M x ... x 4 unstructured ndarray
+        """
+        Converted to the double M x ... x 4 unstructured ndarray
+
+        :return:  M x ... x 4 ndarray
+        """
         compact_dtype = np.dtype([('wxyz', 'double', 4)])
         return self.view(compact_dtype)['wxyz']
 
     @property
     def compact(self):
-        # Converted to double (Mx...xN) x 4 unstructured ndarray
+        """
+        Converted to double (Mx...xN) x 4 unstructured ndarray
+
+        :return:  (Mx...xN) x 4 ndarray
+        """
+        #
         return self.matrixform.reshape(-1, 4)
 
     @property
     def conj(self):
-        # Conjugate: conj(a+bi+cj+dk) = a-bi-cj-dk
+        """
+        Conjugate: conj(a+bi+cj+dk) = a-bi-cj-dk
+
+        :return: conjugate quaternion ndarray
+        """
         conj_num = self.view(np.ndarray)
         conj_num['x'] *= -1
         conj_num['y'] *= -1
@@ -274,29 +295,45 @@ class qn(np.ndarray):
 
     @property
     def inv(self):
+        """
+
+        :return: inverse number of quaternion ndarray
+        """
         # 1/qn
         qconj = self.conj
         Q_innerproduct = self * qconj
         Q_ip_inv = 1 / Q_innerproduct['w']
         # The broadcast calculation is necessary here, but need to take care of the redundant dimension otherwise will run into dimensionality expansion problem all the time
-        return np.squeeze(qconj * Q_ip_inv[..., None])
+        return np.squeeze(qconj * Q_ip_inv[..., None]).view(qn)
 
     @property
     def qT(self):
-        # Transposition of quaternion array returns the conjugated quaternions
-        # If want transposition without getting the conjugate number, use .T
+        """
+        Transposition of quaternion array returns the conjugated quaternions
+        If want transposition without getting the conjugate number, use .T
+
+        :return: transposed quaternion ndarray
+        """
+
         return self.conj.T
 
     @property
     def imag(self):
-        # Return the quatenrion number whose real part (qn['w']) = 0;
+        """
+
+        :return: quatenrion ndarray with real part set to 0;
+        """
         imagpart = np.copy(self)
         imagpart['w'] = 0
         return imagpart.view(qn)
 
     @property
     def real(self):
-        # Return the quatenrion number whose imag part (qn['xyz']) = 0;
+        """
+
+         :return: quatenrion ndarray with imag part set to 0;
+         """
+
         realpart = np.copy(self)
         realpart['x'] = 0
         realpart['y'] = 0
@@ -338,7 +375,7 @@ class qn(np.ndarray):
     def conj_sandwich_mat(self):
         # Return the corresponding matrix QN so (qn1*qn2*qn.conj).matrixform = QN*[qn2.w;qn2.x,qn2.y;qn2.z]
         # Equal to rotation matrix
-        return sliceDot(self.leftmul_matrix,self.leftmul_matrix)
+        return sliceDot(self.leftmul_matrix, self.leftmul_matrix)
 
     @property
     def sandwich_mat(self):
@@ -353,7 +390,7 @@ class qn(np.ndarray):
             if sum_axis < 0:
                 sum_axis -= 1
             elif sum_axis > self.ndim:
-                raise AxisError('axis %d is out of bounds for array of dimension %d' % (sum_axis, self.ndim))
+                raise np.AxisError('axis %d is out of bounds for array of dimension %d' % (sum_axis, self.ndim))
         else:
             sum_axis = 0
         kwargs['axis'] = sum_axis
@@ -365,13 +402,19 @@ class qn(np.ndarray):
 
 
 ################################### Functions ###################################
-def sliceDot(mat1,mat2):
+def sliceDot(mat1, mat2):
+    """
+
+    :param mat1: ndarray with ndim >= 2
+    :param mat2: ndarray with ndim >= 2
+    :return: inner product of each 2D slice of the two N-D matrices
+    """
     ein_char = 'abcdefghijklmnopqrstuvwxyz'
     mat1string = ein_char[:mat1.ndim]
-    mat2string = ein_char[1]+ein_char[mat1.ndim]+ein_char[2:mat1.ndim]
-    outputstring = ein_char[0]+ein_char[mat1.ndim]+ein_char[2:mat1.ndim]
-    ein_string = '%s,%s -> %s' % (mat1string,mat2string,outputstring)
-    return np.einsum(ein_string,mat1,mat2)
+    mat2string = ein_char[1] + ein_char[mat1.ndim] + ein_char[2:mat1.ndim]
+    outputstring = ein_char[0] + ein_char[mat1.ndim] + ein_char[2:mat1.ndim]
+    ein_string = '%s,%s -> %s' % (mat1string, mat2string, outputstring)
+    return np.einsum(ein_string, mat1, mat2)
 
 
 def stack(*qn_array, **kwargs):
@@ -393,7 +436,7 @@ def sum(*qn_array, **kwargs):
         if sum_axis < 0:
             sum_axis -= 1
         elif sum_axis > qn_array[0].ndim:
-            raise AxisError('axis %d is out of bounds for array of dimension %d' % (sum_axis, self.ndim))
+            raise np.AxisError('axis %d is out of bounds for array of dimension %d' % (sum_axis, qn_array[0].ndim))
     else:
         sum_axis = 0
     kwargs['axis'] = sum_axis
@@ -413,7 +456,7 @@ def nansum(*qn_array, **kwargs):
         if sum_axis < 0:
             sum_axis -= 1
         elif sum_axis > qn_array[0].ndim:
-            raise AxisError('axis %d is out of bounds for array of dimension %d' % (sum_axis, self.ndim))
+            raise np.AxisError('axis %d is out of bounds for array of dimension %d' % (sum_axis, qn_array[0].ndim))
     else:
         sum_axis = 0
     kwargs['axis'] = sum_axis
@@ -432,7 +475,7 @@ def mean(*qn_array, **kwargs):
         if sum_axis < 0:
             sum_axis -= 1
         elif sum_axis > qn_array[0].ndim:
-            raise AxisError('axis %d is out of bounds for array of dimension %d' % (sum_axis, self.ndim))
+            raise np.AxisError('axis %d is out of bounds for array of dimension %d' % (sum_axis, qn_array[0].ndim))
     else:
         sum_axis = 0
     kwargs['axis'] = sum_axis
@@ -481,17 +524,21 @@ def anglebtw(qn1, qn2):
 def reflect(surf_normal, points):
     """
     Calculate the reflected 3d vectors representing with quaternions whose real part = 0
-    Input:
-        surf_normal: normal vector for the reflection surface (quaternion)
-        points: qn vectors or points to be reflected
-    Output:
-        reflected qn vectors/points
+
+    :param surf_normal: normal vector for the reflection surface (quaternion)
+    :param points: qn vectors or points to be reflected
+    :return: reflected qn vectors/points
     """
-    #
     surf_normal /= surf_normal.norm
     return surf_normal * points * surf_normal
 
+
 def reflect_matrix(surf_norm_vector):
+    """
+
+    :param surf_norm_vector: normal vector for the reflection surface (1 x 3 ndarray)
+    :return: 4x4 ndarray matrix which perform reflection transformation
+    """
     normtype = type(surf_norm_vector)
     if normtype == np.ndarray:
         surf_norm = qn(surf_norm_vector)
@@ -500,6 +547,7 @@ def reflect_matrix(surf_norm_vector):
     else:
         raise Exception("Camera orientation should be a ndarray or a quaternion, instead its type is %s\n" % normtype)
     return surf_norm.sandwich_mat
+
 
 def rotate(rot_axis, rot_point, rot_angle=None):
     """
@@ -513,12 +561,19 @@ def rotate(rot_axis, rot_point, rot_angle=None):
     Output:
         rotated qn vector/points
     """
-    if type(rot_angle) != type(None):
+    if rot_angle is not None:
         rot_axis = np.squeeze(exp(rot_angle / 2 * rot_axis.normalize))
     # rot_axis[np.isnan(rot_axis.norm)] *= 0
     return rot_axis * rot_point * rot_axis.conj
 
-def rotation_matrix(rotation_axis,rot_angle = None):
+
+def rotation_matrix(rotation_axis, rot_angle=None):
+    """
+
+    :param rotation_axis:  rotation axis (1 x 3 ndarray)
+    :param rot_angle: optional, real number defines the rotation angle
+    :return:  4x4 ndarray matrix which perform rotation transformation
+    """
     axistype = type(rotation_axis)
     if axistype == np.ndarray:
         rot_axis = qn(rotation_axis)
@@ -526,7 +581,7 @@ def rotation_matrix(rotation_axis,rot_angle = None):
         rot_axis = rotation_axis  # The real part of the  orientation quaternion should always be 0
     else:
         raise Exception('Camera orientation should be a ndarray or a quaternion, instead its type is %s\n' % axistype)
-    if type(rot_angle) != type(None):
+    if rot_angle is not None:
         rot_axis = np.squeeze(exp(rot_angle / 2 * rot_axis.normalize))
     return rot_axis.conj_sandwich_mat
 
@@ -547,12 +602,14 @@ def rotTo(fromQn, toQn):
     transVec += transVec.norm
     return transVec.normalize
 
-def projection(surf_normal_qn, proj_pnt_qn, on_plane=True, outputformat = 'qn'):
+
+def projection(surf_normal_qn, proj_pnt_qn, on_plane=True):
     """
     Computing the projected quaternion
     ------------
     :param  surf_normal_qn: normal vector of the projection surface (quaternion)
     :param  proj_pnt_qn: qn vectors to be projected
+    :param  on_plane: If true, project points onto the surface defined by the normal vector, otherwise projected on to the vector
     :return:  projected qn vectors
     """
     if on_plane:
@@ -560,44 +617,41 @@ def projection(surf_normal_qn, proj_pnt_qn, on_plane=True, outputformat = 'qn'):
     else:
         return (proj_pnt_qn - reflect(surf_normal_qn, proj_pnt_qn)) / 2
 
-def projection_matrix(projection_normal, flat_output = True):
+
+def projection_matrix(projection_normal, flat_output=True):
     """
     Calculate the orthogonal projection transformation
     ------------
-    :param camera_orientation: 1 x 3 ndarray or a quaternion number; the camera's pointing direction
+    :param projection_normal: 1 x 3 ndarray or a quaternion number; the camera's pointing direction
     :param flat_output: boolean, optional; if True (default), the output transformation quternion number or matrix will project the target point to the xy plane
-    :param outputformat: str; can either be 'mat' (returns transformation matrix) or 'qn' (returns transformation quaternion number, default).
     :return: transformation matrix or quaternion number for the corresponding orthogonal projection
     """
-    if all(projection_normal.imagpart.flatten()==0):
+    if all(projection_normal.imagpart.flatten() == 0):
         raise Exception('Input projection normal vector is a zero vector')
     else:
         reflect_mat = reflect_matrix(projection_normal)
         projection_mat = (np.eye(4) + np.squeeze(reflect_mat)) / 2
 
         if flat_output:
-            xynorm = qn(np.array([0,0,1]))  # The normal quaternion number for x-y plane
+            xynorm = qn(np.array([0, 0, 1]))  # The normal quaternion number for x-y plane
             if all(projection_normal.imagpart.flatten()[:2] == 0):
                 backrot = rotTo(projection_normal, xynorm)
             else:
-                projection_xy = np.copy(projection_normal).view(qn)  # Intermediate quaternnion for rotate the projected result to the x-y plane
+                projection_xy = np.copy(projection_normal).view(
+                    qn)  # Intermediate quaternnion for rotate the projected result to the x-y plane
                 projection_xy['z'] *= 0
-                backrot = rotTo(projection_xy,xynorm) * rotTo(projection_normal,projection_xy)
+                backrot = rotTo(projection_xy, xynorm) * rotTo(projection_normal, projection_xy)
             backrot_mat = rotation_matrix(backrot)
-            return np.dot(np.squeeze(backrot_mat),projection_mat)
+            return np.dot(np.squeeze(backrot_mat), projection_mat)
         else:
             return projection_mat
 
-def orthogonal_projection(camera_orientation, flat_output = True, outputformat = 'qn'):
 
-    oritype = type(camera_orientation)
-    if oritype == np.ndarray:
-        camori = qn(camera_orientation)
-    elif oritype == qn:
-        camori = camera_orientation.imag # The real part of the  orientation quaternion should always be 0
-    else:
-        raise Exception('Camera orientation should be a ndarray or a quaternion, instead its type is %s\n' % oritype)
-
-
-
-
+# def orthogonal_projection(camera_orientation, flat_output=True, outputformat='qn'):
+#     oritype = type(camera_orientation)
+#     if oritype == np.ndarray:
+#         camori = qn(camera_orientation)
+#     elif oritype == qn:
+#         camori = camera_orientation.imag  # The real part of the  orientation quaternion should always be 0
+#     else:
+#         raise Exception('Camera orientation should be a ndarray or a quaternion, instead its type is %s\n' % oritype)
