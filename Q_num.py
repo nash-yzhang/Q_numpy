@@ -626,6 +626,14 @@ def projection_matrix(projection_normal, flat_output=True):
     :param flat_output: boolean, optional; if True (default), the output transformation quternion number or matrix will project the target point to the xy plane
     :return: transformation matrix or quaternion number for the corresponding orthogonal projection
     """
+    normaltype = type(projection_normal)
+    if normaltype == np.ndarray:
+        projection_normal = qn(projection_normal)
+    elif normaltype == qn:
+        pass
+    else:
+        raise Exception('Camera orientation should be a ndarray or a quaternion, instead its type is %s\n' % normaltype)
+
     if all(projection_normal.imagpart.flatten() == 0):
         raise Exception('Input projection normal vector is a zero vector')
     else:
